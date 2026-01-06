@@ -1,0 +1,6 @@
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+USOS_CFG_DIR=/data/cfgs
+USOS_DB_PATH=/data/plan.db3
+
+0 20 * * 0 cd /app && python -m cli.update_data >> /var/log/cron.log 2>&1
