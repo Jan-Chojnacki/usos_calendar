@@ -9,6 +9,11 @@ from adapters.config_files import iter_class_configs, unique_class_pairs
 from adapters.path_resolvers import cfg_path
 from adapters.sql_loader import load_sql
 
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("usos_calendar")
+
 SQL_UPSERT_ACTIVITY: Final[str] = load_sql("upsert_activity.sql")
 SQL_CANCEL_ACTIVITY: Final[str] = load_sql("cancel_activity.sql")
 SQL_UPSERT_COURSES: Final[str] = load_sql("upsert_courses.sql")
@@ -48,6 +53,8 @@ def generate_data_to_fetch() -> list[tuple[int, int]]:
 
 
 def database_update(conn: sqlite3.Connection, data: list[tuple[int, int]], url: str):
+    logger.info("Start database update")
+
     now = utc_now_iso()
     cur = conn.cursor()
 
@@ -60,6 +67,7 @@ def database_update(conn: sqlite3.Connection, data: list[tuple[int, int]], url: 
         with requests.Session() as session:
             for unit_id, group_number in data:
                 limiter.wait()
+                logger.info(f"Downloading {unit_id}:{group_number}")
                 raws = _fetch_unit_group(session, url, unit_id, group_number)
 
                 for raw in raws:
@@ -79,6 +87,8 @@ def database_update(conn: sqlite3.Connection, data: list[tuple[int, int]], url: 
 
     finally:
         cur.close()
+
+    logger.info("Stop database update")
 
 
 def _compute_seq_dtstamp(
