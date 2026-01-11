@@ -1,4 +1,5 @@
 import sqlite3
+import time
 from typing import Any, Final
 
 import requests
@@ -20,6 +21,21 @@ SQL_UPDATE_SYNC_RUN_ERROR: Final[str] = load_sql("update_sync_run_error.sql")
 SQL_SCHEMA: Final[str] = load_sql("schema.sql")
 
 
+class RPSLimiter:
+    def __init__(self, rps: float):
+        if rps <= 0:
+            raise ValueError("rps must be > 0")
+        self._interval = 1.0 / rps
+        self._next_allowed = time.monotonic()
+
+    def wait(self) -> None:
+        now = time.monotonic()
+        if now < self._next_allowed:
+            time.sleep(self._next_allowed - now)
+            now = time.monotonic()
+        self._next_allowed = max(self._next_allowed, now) + self._interval
+
+
 def database_setup(conn: sqlite3.Connection):
     with conn:
         conn.executescript(SQL_SCHEMA)
@@ -38,9 +54,12 @@ def database_update(conn: sqlite3.Connection, data: list[tuple[int, int]], url: 
     cur.execute(SQL_INSERT_SYNC_RUN, (now,))
     sync_id = cur.lastrowid
 
+    limiter = RPSLimiter(rps=10)
+
     try:
         with requests.Session() as session:
             for unit_id, group_number in data:
+                limiter.wait()
                 raws = _fetch_unit_group(session, url, unit_id, group_number)
 
                 for raw in raws:
